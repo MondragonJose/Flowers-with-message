@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Flores amarillas 🌻</title>
+  <style>
+    body {
+      background-color: black;
+      color: white;
+      text-align: center;
+      font-family: Verdana, sans-serif;
+    }
+    canvas {
+      display: block;
+      margin: 20px auto;
+      background-color: black;
+    }
+    #status {
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+  <h2>Flores amarillas 🌻</h2>
+  <canvas id="canvas" width="800" height="800"></canvas>
+  <div id="status">Preparando...</div>
+
+  <!-- Música -->
+  <audio id="music" autoplay loop>
+    <source src="flores.mp3" type="audio/mpeg">
+    Tu navegador no soporta audio.
+  </audio>
+
+  <script>
+    async function drawFromJson() {
+      const canvas = document.getElementById("canvas");
+      const ctx = canvas.getContext("2d");
+      const status = document.getElementById("status");
+
+      // Leer JSON
+      const response = await fetch("sunflowers.json");
+      const regions = await response.json();
+
+      // Calcular límites
+      let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+      regions.forEach(r => {
+        r.contour.forEach(([x,y]) => {
+          if (x < minX) minX = x;
+          if (x > maxX) maxX = x;
+          if (y < minY) minY = y;
+          if (y > maxY) maxY = y;
+        });
+      });
+
+      const width = (maxX - minX) || 1;
+      const height = (maxY - minY) || 1;
+      const margin = 100;
+      const usable = canvas.width - margin * 2;
+      const scale = Math.min(usable / width, usable / height);
+      const centerX = (minX + maxX) / 2;
+      const centerY = (minY + maxY) / 2;
+      const cxCanvas = canvas.width / 2;
+      const cyCanvas = canvas.height / 2;
+
+      function colorToHex(col) {
+        if (!col || col.length < 3) return "#000000";
+        let rgb;
+        if (Math.max(...col) <= 1.0) {
+          rgb = col.slice(0,3).map(v => Math.min(255, Math.max(0, Math.round(v * 255))));
+        } else {
+          rgb = col.slice(0,3).map(v => Math.min(255, Math.max(0, Math.round(v))));
+        }
+        return `rgb(${rgb[0]},${rgb[1]},${rgb[2]})`;
+      }
+
+      let idx = 0;
+      const regionsPerFrame = 30;
+      const drawDelay = 60; // ms
+
+      function drawChunk() {
+        const endIdx = Math.min(regions.length, idx + regionsPerFrame);
+        for (let i = idx; i < endIdx; i++) {
+          const region = regions[i];
+          const fill = colorToHex(region.color);
+          const contour = region.contour;
+          if (!contour.length) continue;
+
+          ctx.beginPath();
+          contour.forEach(([px, py], j) => {
+            const x = (px - centerX) * scale + cxCanvas;
+            const y = (py - centerY) * scale + cyCanvas;
+            if (j === 0) ctx.moveTo(x,y);
+            else ctx.lineTo(x,y);
+          });
+          ctx.closePath();
+          ctx.fillStyle = fill;
+          ctx.fill();
+        }
+
+        idx = endIdx;
+        const percent = (idx / regions.length) * 100;
+        status.textContent = `Dibujando... ${idx}/${regions.length} regiones (${percent.toFixed(1)}%)`;
+
+        if (idx < regions.length) {
+          setTimeout(drawChunk, drawDelay);
+        } else {
+          // Texto final
+          ctx.fillStyle = "gold";
+          ctx.font = "bold italic 16px Verdana";
+          ctx.textAlign = "center";
+          ctx.fillText("La distancia no impide que te tenga presente.", canvas.width/2, 40);
+
+          ctx.font = "italic 14px Verdana";
+          ctx.fillText("Con cariño, Samuelito", canvas.width/2, 70);
+
+          status.textContent = "Listo 🎉";
+        }
+      }
+
+      drawChunk();
+    }
+
+    drawFromJson();
+  </script>
+</body>
+</html>
